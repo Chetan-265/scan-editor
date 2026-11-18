@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scan Editor</title>
+<style>
+:root{--bg:#f6f5f1;--fg:#1d2433;--mut:#5d6677;--ac:#0b5cad;--bd:#cfd3da;--card:#fff;color-scheme:light dark}
+@media(prefers-color-scheme:dark){:root{--bg:#14171d;--fg:#e8eaee;--mut:#9aa3b2;--ac:#6cb0f5;--bd:#2f3541;--card:#1d222b}}
+*{box-sizing:border-box}
+body{margin:0 auto;max-width:960px;padding:14px;background:var(--bg);color:var(--fg);font:16px/1.5 Georgia,serif}
+h1{font-size:1.5rem;margin:0 0 2px}
+p.sub{margin:0 0 14px;color:var(--mut);font:14px system-ui,sans-serif}
+.bar,.panel{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;font:14px system-ui,sans-serif}
+.panel{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:10px}
+button,select,input[type=text]{font:inherit;padding:8px 12px;border:1px solid var(--bd);border-radius:6px;background:var(--card);color:var(--fg)}
+button{cursor:pointer}button.p{background:var(--ac);color:#fff;border-color:var(--ac)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+input[type=text]{min-width:0;flex:1 1 130px}
+#view{width:100%;height:auto;border:1px solid var(--bd);background:#fff;touch-action:manipulation;cursor:crosshair}
+#st{font:14px system-ui,sans-serif;color:var(--mut);min-height:1.4em;margin:6px 0}
+label{display:flex;gap:6px;align-items:center}
+</style></head><body>
+<h1>Scan Editor</h1>
+<p class="sub">Free and private: everything runs in your browser. Nothing is uploaded.</p>
+<div class="bar">
+<input type="file" id="file" accept="application/pdf,image/*">
+<button class="p" id="ocr">1. Run OCR</button>
+<button id="undo">Undo</button>
+<button class="p" id="save">3. Save PDF</button>
+</div>
+<div id="st">Choose a scanned PDF or image to begin.</div>
+<div class="bar"><button id="prev">Prev</button><span id="pg">0 / 0</span><button id="next">Next</button></div>
+<div class="panel">
+<strong>2. Tap a word on the page, then edit it:</strong>
+<input type="text" id="word" placeholder="Selected word">
+<button class="p" id="apply">Replace word</button>
+</div>
+<div class="panel">
+<select id="fam"><option value='Georgia,"Times New Roman",serif'>Serif</option><option value='Helvetica,Arial,sans-serif'>Sans</option><option value='"Courier New",monospace'>Mono</option></select>
+<label><input type="checkbox" id="bold">Bold</label>
+<label>Size <input type="range" id="sz" min="60" max="130" value="95"></label>
+<input type="text" id="fnd" placeholder="Find"><input type="text" id="rep" placeholder="Replace with">
+<button id="all">Replace all</button>
+</div>
+<canvas id="view"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const $=id=>document.getElementById(id),st=m=>$('st').textContent=m;
+let pages=[],cur=0,sel=null;
+const view=$('view'),vc=view.getContext('2d');
+
+function show(){
+  const p=pages[cur];if(!p){return}
+  view.width=p.cv.width;view.height=p.cv.height;vc.drawImage(p.cv,0,0);
+  p.words.forEach(w=>{vc.lineWidth=2;vc.strokeStyle=w===sel?'#d4351c':'rgba(11,92,173,.45)';vc.strokeRect(w.x0,w.y0,w.x1-w.x0,w.y1-w.y0)});
+  $('pg').textContent=(cur+1)+' / '+pages.length;
+}
+$('prev').onclick=()=>{if(cur>0){cur--;sel=null;show()}};
+$('next').onclick=()=>{if(cur<pages.length-1){cur++;sel=null;show()}};
+
+$('file').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;pages=[];sel=null;st('Loading…');
+  try{
+    if(f.type==='application/pdf'){
+      const pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;
+      for(let i=1;i<=pdf.numPages;i++){
+        const pg=await pdf.getPage(i),vp=pg.getViewport({scale:2}),cv=document.createElement('canvas');
+        cv.width=vp.width;cv.height=vp.height;
+        await pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+        pages.push({cv,words:[],s:2});
+        st('Loaded page '+i+' of '+pdf.numPages);
+      }
+    }else{
+      const im=await createImageBitmap(f),cv=document.createElement('canvas');
+      cv.width=im.width;cv.height=im.height;cv.getContext('2d').drawImage(im,0,0);
+      pages.push({cv,words:[],s:1});
+    }
+    cur=0;show();st(pages.length+' page(s) loaded. Next: Run OCR.');
+  }catch(err){st('Could not open that file: '+err.message)}
+};
+
+$('ocr').onclick=async()=>{
+  if(!pages.length)return st('Open a file first.');
+  let k=0;
+  try{
+    const w=await Tesseract.createWorker('eng',1,{logger:m=>{if(m.status==='recognizing text')st('OCR page '+(k+1)+' of '+pages.length+': '+Math.round(m.progress*100)+'%')}});
+    for(k=0;k<pages.length;k++){
+      const r=await w.recognize(pages[k].cv);
+      pages[k].words=r.data.words.filter(x=>x.text.trim()).map(x=>({text:x.text,x0:x.bbox.x0,y0:x.bbox.y0,x1:x.bbox.x1,y1:x.bbox.y1}));
+    }
+    await w.terminate();show();st('OCR done. Tap a word on the page to edit it.');
+  }catch(err){st('OCR failed: '+err.message+'. Check your internet connection (needed once to load the language data).')}
+};
+
+view.addEventListener('click',e=>{
+  const p=pages[cur];if(!p)return;
+  const r=view.getBoundingClientRect(),x=(e.clientX-r.left)*view.width/r.width,y=(e.clientY-r.top)*view.height/r.height;
+  const hit=p.words.filter(w=>x>=w.x0&&x<=w.x1&&y>=w.y0&&y<=w.y1).sort((a,b)=>(a.x1-a.x0)*(a.y1-a.y0)-(b.x1-b.x0)*(b.y1-b.y0))[0];
+  sel=hit||null;$('word').value=hit?hit.text:'';show();
+  if(hit)$('word').focus();else st('No recognized word there. Run OCR first, or tap closer to the text.');
+});
+
+function snap(p){
+  p.u=p.u||[];
+  p.u.push({i:p.cv.getContext('2d').getImageData(0,0,p.cv.width,p.cv.height),w:JSON.parse(JSON.stringify(p.words))});
+  if(p.u.length>5)p.u.shift();
+}
+$('undo').onclick=()=>{
+  const p=pages[cur],s=p&&p.u&&p.u.pop();
+  if(s){p.cv.getContext('2d').putImageData(s.i,0,0);p.words=s.w;sel=null;show();st('Undone.')}else st('Nothing to undo on this page.');
+};
+
+function avg(a){const n=Math.max(1,a.length);return 'rgb('+[1,2,3].map(k=>Math.round(a.reduce((u,v)=>u+v[k],0)/n)).join()+')'}
+function paint(p,w,t){
+  const c=p.cv.getContext('2d'),bw=Math.max(1,w.x1-w.x0),bh=Math.max(1,w.y1-w.y0);
+  const im=c.getImageData(w.x0,w.y0,bw,bh).data,a=[];
+  for(let i=0;i<im.length;i+=4)a.push([im[i]+im[i+1]+im[i+2],im[i],im[i+1],im[i+2]]);
+  a.sort((m,n)=>n[0]-m[0]);
+  const bg=avg(a.slice(0,Math.ceil(a.length*.3))),ink=avg(a.slice(-Math.ceil(a.length*.03)));
+  c.fillStyle=bg;c.fillRect(w.x0-3,w.y0-3,bw+6,bh+6);
+  c.fillStyle=ink;c.textBaseline='middle';
+  c.font=($('bold').checked?'bold ':'')+Math.round(bh*$('sz').value/100)+'px '+$('fam').value;
+  c.fillText(t,w.x0,(w.y0+w.y1)/2);
+  w.x1=Math.max(w.x1,w.x0+Math.round(c.measureText(t).width));w.text=t;
+}
+$('apply').onclick=()=>{
+  const p=pages[cur],t=$('word').value;
+  if(!sel)return st('Tap a word on the page first.');
+  if(!t)return st('Type the new text first.');
+  snap(p);paint(p,sel,t);sel=null;show();st('Replaced. Save PDF when you are done.');
+};
+$('all').onclick=()=>{
+  const f=$('fnd').value.trim(),t=$('rep').value;let n=0;
+  if(!f)return st('Type the text to find.');
+  const clean=s=>s.replace(/^[^\w]+|[^\w]+$/g,'').toLowerCase();
+  pages.forEach(p=>{
+    const m=p.words.filter(w=>clean(w.text)===clean(f));
+    if(m.length){snap(p);m.forEach(w=>{paint(p,w,t);n++})}
+  });
+  sel=null;show();st(n?'Replaced '+n+' match(es) across all pages.':'No matches. Check the spelling against what OCR read.');
+};
+
+$('save').onclick=async()=>{
+  if(!pages.length)return st('Open a file first.');
+  st('Building PDF…');
+  try{
+    const {PDFDocument,StandardFonts}=PDFLib,doc=await PDFDocument.create(),f=await doc.embedFont(StandardFonts.Helvetica);
+    for(const p of pages){
+      const W=p.cv.width/p.s,H=p.cv.height/p.s,pg=doc.addPage([W,H]);
+      pg.drawImage(await doc.embedJpg(p.cv.toDataURL('image/jpeg',.92)),{x:0,y:0,width:W,height:H});
+      for(const w of p.words){
+        try{pg.drawText(w.text,{x:w.x0/p.s,y:H-w.y1/p.s,size:Math.max(4,(w.y1-w.y0)/p.s*.85),font:f,opacity:0})}catch(e){}
+      }
+    }
+    const b=new Blob([await doc.save()],{type:'application/pdf'}),a=document.createElement('a');
+    a.href=URL.createObjectURL(b);a.download='edited-'+new Date().toISOString().slice(0,10)+'.pdf';
+    document.body.appendChild(a);a.click();a.remove();st('Saved. The PDF keeps the original look and has a selectable, searchable text layer.');
+  }catch(err){st('Could not save: '+err.message)}
+};
+</script></body></html>
