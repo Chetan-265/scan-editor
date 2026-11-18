@@ -31,8 +31,8 @@ dialog{border:1px solid var(--bd);border-radius:12px;background:var(--card);colo
 #sc{width:100%;max-width:600px;height:auto;background:#fff;border:1px dashed var(--bd);touch-action:none;border-radius:6px}
 
 .sheet{position:relative}
-#pop{position:absolute;z-index:5;display:flex;flex-direction:column;gap:6px;max-width:calc(100% - 8px);padding:6px;background:var(--card);border:1px solid var(--ac);border-radius:9px;box-shadow:0 4px 18px rgba(31,111,209,.35)}
-#pop[hidden]{display:none}
+#pop,#ipop{position:absolute;z-index:5;display:flex;flex-direction:column;gap:6px;max-width:calc(100% - 8px);padding:6px;background:var(--card);border:1px solid var(--ac);border-radius:9px;box-shadow:0 4px 18px rgba(31,111,209,.35)}
+#pop[hidden],#ipop[hidden]{display:none}
 .pr{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .pt{border:1px solid var(--ac);border-radius:7px;gap:0;overflow:hidden}
 .pt>*{border:0;border-right:1px solid var(--ac);border-radius:0;padding:6px 10px;background:transparent;color:var(--ac);height:36px}
@@ -40,6 +40,12 @@ dialog{border:1px solid var(--bd);border-radius:12px;background:var(--card);colo
 .pt label{display:flex;gap:4px;align-items:center;font-size:.85rem}
 .pt select{max-width:130px}.pt input[type=color]{width:44px;padding:3px}#sz{width:76px}#pmv{touch-action:none;cursor:grab}
 #pop input[type=text]{min-width:170px;padding:6px 8px}
+
+.sheet{overflow:auto;max-height:80vh}#view{margin:0 auto}
+.nav{flex-wrap:wrap}.tb.sm{display:inline-flex;overflow:visible}.tb.sm button{padding:9px 14px}
+.insb{border-color:var(--ac);color:var(--ac)}
+#ins .row{flex-direction:column;align-items:stretch}
+#iok{background:var(--ac)!important;color:#fff!important}
 </style></head><body><main>
 <header>
 <h1>Scan Editor<small>Free and private. Everything stays in your browser.</small></h1>
@@ -64,7 +70,16 @@ dialog{border:1px solid var(--bd);border-radius:12px;background:var(--card);colo
 <label>Thickness <select id="wid"><option>1</option><option selected>2</option><option>4</option><option>6</option></select></label>
 </div>
 <div id="st">Open a scanned PDF or image to begin.</div>
-<div class="nav"><button id="prev">Prev</button><span id="pg">0 / 0</span><button id="next">Next</button></div>
+<div class="nav">
+<div class="tb sm" role="toolbar" aria-label="Page tools">
+<button id="pdelpg" title="Delete page" aria-label="Delete page">🗑</button>
+<button id="zin" title="Zoom in" aria-label="Zoom in">🔍+</button>
+<button id="zout" title="Zoom out" aria-label="Zoom out">🔍−</button>
+<button id="rl" title="Rotate left" aria-label="Rotate left">↺</button>
+<button id="rr" title="Rotate right" aria-label="Rotate right">↻</button></div>
+<button class="insb" id="pins">⊕ Insert page here</button>
+<button id="prev">Prev</button><span id="pg">0 / 0</span><button id="next">Next</button>
+</div>
 <div class="sheet" id="sheet"><canvas id="view"></canvas>
 <div id="pop" hidden>
 <div class="pr"><input type="text" id="word" placeholder="Type your text" aria-label="Text"><button class="p" id="apply" title="Apply text" aria-label="Apply text">✓</button></div>
@@ -78,9 +93,19 @@ dialog{border:1px solid var(--bd);border-radius:12px;background:var(--card);colo
 <button id="pmv" title="Drag to move" aria-label="Move">✥</button>
 <button id="pdup" title="Duplicate" aria-label="Duplicate">⧉</button>
 <button id="pdel" title="Delete" aria-label="Delete">✕</button></div>
-</div></div>
+</div>
+<div id="ipop" hidden><div class="pr pt">
+<button id="icrop" title="Crop">Crop</button>
+<button id="irl" title="Rotate left" aria-label="Rotate left">↺</button><button id="irr" title="Rotate right" aria-label="Rotate right">↻</button>
+<button id="ibg" title="Remove background">Remove BG</button>
+<button id="idel" title="Delete image" aria-label="Delete image">✕</button>
+<button id="iok" title="Place image on page" aria-label="Place image on page">✓</button></div></div></div>
 <dialog id="sg"><p>Sign with your finger or mouse</p><canvas id="sc" width="600" height="220"></canvas>
 <div class="row" style="margin-top:10px"><button id="scl">Clear</button><button id="sx">Cancel</button><button class="p" id="sok">Use signature</button></div></dialog>
+<dialog id="ins"><p><strong>Insert page here</strong></p><div class="row">
+<button id="insB">Blank page before this page</button><button id="insA">Blank page after this page</button>
+<button id="insF">Pages from a PDF or image, after this page</button><button id="insC">Cancel</button></div></dialog>
+<input type="file" id="insf" accept="application/pdf,image/*" hidden>
 <input type="file" id="imgf" accept="image/*" hidden>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -89,9 +114,9 @@ dialog{border:1px solid var(--bd);border-radius:12px;background:var(--card);colo
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 const $=id=>document.getElementById(id),st=m=>$('st').textContent=m;
-let pages=[],cur=0,sel=null,tool='',drag=null,pend=null,tcol='#000000',tcolFor=null,stFor=null;
+let pages=[],cur=0,sel=null,tool='',drag=null,pend=null,tcol='#000000',tcolFor=null,stFor=null,im=null;
 const view=$('view'),vc=view.getContext('2d');
-const HINT={text:'Tap a word to edit it, or drag on empty space to add a text box. A toolbar appears next to the text. Drag a red corner to resize the box.',whiteout:'Drag over anything to cover it with the paper color.',annot:'Drag to highlight, or switch to Pen to draw freehand.',shape:'Drag to draw the shape.',image:'Drag a box where it should go. Drag again to place another copy.'};
+const HINT={text:'Tap a word to edit it, or drag on empty space to add a text box. A toolbar appears next to the text. Drag a red corner to resize the box.',whiteout:'Drag over anything to cover it with the paper color.',annot:'Drag to highlight, or switch to Pen to draw freehand.',shape:'Drag to draw the shape.',image:'Tap the page to place it, or drag a box. Then use the floating toolbar: crop, rotate, remove background, delete, or the check mark to place it.'};
 const SUB={annot:[['hl','Highlight'],['pen','Pen']],shape:[['rect','Rectangle'],['ell','Ellipse'],['line','Line'],['arr','Arrow']]};
 const COL={hl:'#ffe14d',pen:'#1a3cff',rect:'#d4351c',ell:'#d4351c',line:'#d4351c',arr:'#d4351c'};
 const FONTS=[['Tinos (Times-like)','Tinos','serif'],['Arimo (Arial-like)','Arimo','sans-serif'],['Cousine (Courier-like)','Cousine','monospace'],['Georgia','Georgia','serif'],['Times New Roman','"Times New Roman"','serif'],['Palatino','Palatino,"Palatino Linotype"','serif'],['Baskerville','Baskerville','serif'],['Helvetica','Helvetica','sans-serif'],['Arial','Arial','sans-serif'],['Verdana','Verdana','sans-serif'],['Trebuchet MS','"Trebuchet MS"','sans-serif'],['Courier New','"Courier New"','monospace'],['Roboto','Roboto','sans-serif'],['Open Sans','"Open Sans"','sans-serif'],['Lato','Lato','sans-serif'],['Noto Sans','"Noto Sans"','sans-serif'],['Noto Serif','"Noto Serif"','serif'],['Merriweather','Merriweather','serif'],['Lora','Lora','serif'],['EB Garamond','"EB Garamond"','serif'],['Libre Baskerville','"Libre Baskerville"','serif'],['Playfair Display','"Playfair Display"','serif'],['Source Serif 4','"Source Serif 4"','serif'],['Inconsolata','Inconsolata','monospace'],['Caveat (handwriting)','Caveat','cursive']];
@@ -145,13 +170,24 @@ function render(c,p,k,a,b,pts,pv){
 }
 
 function show(){
-  const p=pages[cur];if(!p)return;
+  const p=pages[cur];view.style.display=p?'block':'none';
+  if(!p){$('pg').textContent='0 / 0';$('pop').hidden=true;return}
   view.width=p.cv.width;view.height=p.cv.height;vc.drawImage(p.cv,0,0);
   const t=$('word').value.trim();
   if(tool==='text'){
     if(sel&&t&&(t!==sel.text||stFor===sel))paintOn(vc,p.cv,sel,t);
     p.words.forEach(w=>{vc.lineWidth=2;vc.strokeStyle=w===sel?'#d4351c':'rgba(31,111,209,.45)';vc.strokeRect(w.x0,w.y0,w.x1-w.x0,w.y1-w.y0)});
     if(sel){const h=hsize();vc.fillStyle='#d4351c';corners(sel).forEach(([x,y])=>vc.fillRect(x-h/2,y-h/2,h,h))}
+  }
+  if(tool==='image'&&im){
+    vc.drawImage(im.src,im.x0,im.y0,im.x1-im.x0,im.y1-im.y0);
+    vc.lineWidth=2;vc.strokeStyle='#1f6fd1';vc.strokeRect(im.x0,im.y0,im.x1-im.x0,im.y1-im.y0);
+    const t=im.crop||im;
+    if(im.crop){const c=im.crop;vc.fillStyle='rgba(0,0,0,.5)';
+      vc.fillRect(im.x0,im.y0,im.x1-im.x0,c.y0-im.y0);vc.fillRect(im.x0,c.y1,im.x1-im.x0,im.y1-c.y1);
+      vc.fillRect(im.x0,c.y0,c.x0-im.x0,c.y1-c.y0);vc.fillRect(c.x1,c.y0,im.x1-c.x1,c.y1-c.y0);
+      vc.strokeStyle='#fff';vc.setLineDash([6,4]);vc.strokeRect(c.x0,c.y0,c.x1-c.x0,c.y1-c.y0);vc.setLineDash([])}
+    const h=hsize();vc.fillStyle='#d4351c';corners(t).forEach(([x,y])=>vc.fillRect(x-h/2,y-h/2,h,h));
   }
   if(drag&&drag.t==='d'){
     if(tool==='text'){vc.setLineDash([8,6]);vc.lineWidth=3;vc.strokeStyle='#d4351c';vc.strokeRect(Math.min(drag.a.x,drag.b.x),Math.min(drag.a.y,drag.b.y),Math.abs(drag.a.x-drag.b.x),Math.abs(drag.a.y-drag.b.y));vc.setLineDash([])}
@@ -160,17 +196,22 @@ function show(){
   $('pg').textContent=pages.length?(cur+1)+' / '+pages.length:'0 / 0';
   placePop();
 }
-function placePop(){
-  const pop=$('pop');
-  if(tool!=='text'||!sel){pop.hidden=true;return}
-  pop.hidden=false;$('ptr').classList.toggle('on',!!sel.tr);
-  const r=view.getBoundingClientRect(),k=r.width/view.width,pw=pop.offsetWidth,ph=pop.offsetHeight;
-  let y=sel.y0*k-ph-10;if(y<4)y=sel.y1*k+10;
+function floatAt(el,b){
+  if(!b){el.hidden=true;return}
+  el.hidden=false;
+  const r=view.getBoundingClientRect(),k=r.width/view.width,pw=el.offsetWidth,ph=el.offsetHeight;
+  let y=b.y0*k-ph-10;if(y<4)y=b.y1*k+10;
   y=Math.max(4,Math.min(y,r.height-ph-4));
-  pop.style.left=Math.max(4,Math.min(sel.x0*k,r.width-pw-4))+'px';pop.style.top=y+'px';
+  el.style.left=Math.max(4,Math.min(b.x0*k,r.width-pw-4))+'px';el.style.top=y+'px';
+}
+function placePop(){
+  floatAt($('pop'),tool==='text'&&sel?sel:null);
+  if(tool==='text'&&sel)$('ptr').classList.toggle('on',!!sel.tr);
+  floatAt($('ipop'),tool==='image'&&im?im:null);
+  if(im)$('icrop').textContent=im.crop?'Apply crop':'Crop';
 }
 function setTool(t){
-  tool=t;if(t!=='text'){sel=null;$('word').value=''}
+  tool=t;if(t!=='image')im=null;if(t!=='text'){sel=null;$('word').value=''}
   view.style.touchAction=t?'none':'manipulation';
   document.querySelectorAll('[data-t]').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
   document.querySelectorAll('.ctx').forEach(c=>c.hidden=!c.dataset.for.split(' ').includes(t));
@@ -179,26 +220,29 @@ function setTool(t){
 }
 $('sub').onchange=()=>{$('col').value=COL[$('sub').value]};
 document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{if(!pages.length)return st('Open a file first.');setTool(tool===b.dataset.t?'':b.dataset.t)});
-$('prev').onclick=()=>{if(cur>0){cur--;sel=null;$('word').value='';show()}};
-$('next').onclick=()=>{if(cur<pages.length-1){cur++;sel=null;$('word').value='';show()}};
+$('prev').onclick=()=>{if(cur>0){cur--;sel=null;im=null;$('word').value='';show()}};
+$('next').onclick=()=>{if(cur<pages.length-1){cur++;sel=null;im=null;$('word').value='';show()}};
 
-$('file').onchange=async e=>{
-  const f=e.target.files[0];if(!f)return;pages=[];sel=null;st('Loading…');
-  try{
-    if(f.type==='application/pdf'){
-      const pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;
-      for(let i=1;i<=pdf.numPages;i++){
-        const pg=await pdf.getPage(i),vp=pg.getViewport({scale:2}),cv=document.createElement('canvas');
-        cv.width=vp.width;cv.height=vp.height;
-        await pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
-        pages.push({cv,words:[],s:2});st('Loaded page '+i+' of '+pdf.numPages);
-      }
-    }else{
-      const im=await createImageBitmap(f),cv=document.createElement('canvas');
-      cv.width=im.width;cv.height=im.height;cv.getContext('2d').drawImage(im,0,0);pages.push({cv,words:[],s:1});
+async function readPages(f){
+  const out=[];
+  if(f.type==='application/pdf'){
+    const pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;
+    for(let i=1;i<=pdf.numPages;i++){
+      const pg=await pdf.getPage(i),vp=pg.getViewport({scale:2}),cv=document.createElement('canvas');
+      cv.width=vp.width;cv.height=vp.height;
+      await pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+      out.push({cv,words:[],s:2});st('Loaded page '+i+' of '+pdf.numPages);
     }
-    cur=0;setTool('');st(pages.length+' page(s) loaded. Use Run OCR to read the text, or pick any tool.');
-  }catch(err){st('Could not open that file: '+err.message)}
+  }else{
+    const im=await createImageBitmap(f),cv=document.createElement('canvas');
+    cv.width=im.width;cv.height=im.height;cv.getContext('2d').drawImage(im,0,0);out.push({cv,words:[],s:1});
+  }
+  return out;
+}
+$('file').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;sel=null;st('Loading…');
+  try{pages=await readPages(f);cur=0;setTool('');st(pages.length+' page(s) loaded. Use Run OCR to read the text, or pick any tool.')}
+  catch(err){st('Could not open that file: '+err.message)}
 };
 $('ocr').onclick=async()=>{
   if(!pages.length)return st('Open a file first.');
@@ -215,22 +259,29 @@ $('ocr').onclick=async()=>{
 
 view.addEventListener('pointerdown',e=>{
   if(!tool)return;const q=pt(e);
-  if(tool==='text'&&sel){
-    const h=hsize(),i=corners(sel).findIndex(([x,y])=>Math.hypot(x-q.x,y-q.y)<h*1.5);
-    if(i>=0)drag={t:'r',i,o:{...sel}};
-    else if(q.x>=sel.x0&&q.x<=sel.x1&&q.y>=sel.y0&&q.y<=sel.y1)drag={t:'m',a:q,o:{...sel}};
+  const t=tool==='text'?sel:tool==='image'&&im?(im.crop||im):null;
+  if(t){
+    const h=hsize(),i=corners(t).findIndex(([x,y])=>Math.hypot(x-q.x,y-q.y)<h*1.5);
+    if(i>=0)drag={t:'r',i,o:{...t}};
+    else if(q.x>=t.x0&&q.x<=t.x1&&q.y>=t.y0&&q.y<=t.y1)drag={t:'m',a:q,o:{...t}};
   }
-  if(!drag)drag={t:'d',a:q,b:q,pts:[q]};
+  if(!drag&&!(tool==='image'&&im))drag={t:'d',a:q,b:q,pts:[q]};
+  if(!drag)return;
   view.setPointerCapture(e.pointerId);e.preventDefault();
 });
 function applyDrag(q){
   if(drag.t==='d'){drag.b=q;drag.pts.push(q)}
-  else if(drag.t==='r'){
-    const o=drag.o,f=[[o.x1,o.y1],[o.x0,o.y1],[o.x1,o.y0],[o.x0,o.y0]][drag.i];
-    sel.x0=Math.min(f[0],q.x);sel.x1=Math.max(f[0],q.x);sel.y0=Math.min(f[1],q.y);sel.y1=Math.max(f[1],q.y);
-  }else{
-    const o=drag.o,mx=Math.min(Math.max(q.x-drag.a.x,-o.x0),view.width-o.x1),my=Math.min(Math.max(q.y-drag.a.y,-o.y0),view.height-o.y1);
-    sel.x0=o.x0+mx;sel.x1=o.x1+mx;sel.y0=o.y0+my;sel.y1=o.y1+my;
+  else{
+    const isI=tool==='image'&&im,t=isI?(im.crop||im):sel,o=drag.o,L=isI&&im.crop?im:{x0:0,y0:0,x1:view.width,y1:view.height};
+    if(drag.t==='r'){
+      const f=[[o.x1,o.y1],[o.x0,o.y1],[o.x1,o.y0],[o.x0,o.y0]][drag.i];
+      let x=Math.min(Math.max(q.x,L.x0),L.x1),y=Math.min(Math.max(q.y,L.y0),L.y1);
+      if(isI&&!im.crop){const ar=(o.y1-o.y0)/(o.x1-o.x0),w=Math.max(10,Math.abs(x-f[0]));x=f[0]+(x<f[0]?-w:w);y=f[1]+(y<f[1]?-w*ar:w*ar)}
+      t.x0=Math.min(f[0],x);t.x1=Math.max(f[0],x);t.y0=Math.min(f[1],y);t.y1=Math.max(f[1],y);
+    }else{
+      const mx=Math.min(Math.max(q.x-drag.a.x,L.x0-o.x0),L.x1-o.x1),my=Math.min(Math.max(q.y-drag.a.y,L.y0-o.y0),L.y1-o.y1);
+      t.x0=o.x0+mx;t.x1=o.x1+mx;t.y0=o.y0+my;t.y1=o.y1+my;
+    }
   }
   show();
 }
@@ -252,6 +303,7 @@ view.addEventListener('pointerup',e=>{
     }
     return;
   }
+  if(tool==='image'){makeDraft(d.a,b,dx,dy);show();return}
   const k=kind();
   if(k==='pen'?d.pts.length>2:(dx>6&&dy>6||(k==='line'||k==='arr')&&dx+dy>12)){
     snap(p);render(p.cv.getContext('2d'),p,k,d.a,b,d.pts,false);
@@ -312,7 +364,7 @@ mv.addEventListener('pointerup',()=>{drag=null;show()});
 $('bimg').onclick=()=>{if(!pages.length)return st('Open a file first.');$('imgf').click()};
 $('imgf').onchange=async e=>{
   const f=e.target.files[0];e.target.value='';if(!f)return;
-  pend=await createImageBitmap(f);setTool('image');
+  pend=fitMax(await createImageBitmap(f),1600);setTool('image');
 };
 const sc=$('sc'),sx=sc.getContext('2d');let sd=false,sb=null;
 function sdraw(e){const r=sc.getBoundingClientRect(),x=(e.clientX-r.left)*sc.width/r.width,y=(e.clientY-r.top)*sc.height/r.height;
@@ -329,6 +381,102 @@ $('sok').onclick=()=>{
   if(!sb)return;const m=8,x=Math.max(0,sb[0]-m),y=Math.max(0,sb[1]-m),w=Math.min(sc.width,sb[2]+m)-x,h=Math.min(sc.height,sb[3]+m)-y;
   pend=document.createElement('canvas');pend.width=w;pend.height=h;pend.getContext('2d').drawImage(sc,x,y,w,h,0,0,w,h);
   $('sg').close();setTool('image');
+};
+
+function fitMax(b,m){const s=Math.min(1,m/Math.max(b.width,b.height)),c=document.createElement('canvas');c.width=Math.round(b.width*s);c.height=Math.round(b.height*s);c.getContext('2d').drawImage(b,0,0,c.width,c.height);return c}
+function makeDraft(a,b,dx,dy){
+  if(!pend||im)return;
+  const sw=pend.width,sh=pend.height;let x,y,w,h;
+  if(dx<10&&dy<10){w=view.width*.3;h=w*sh/sw;x=a.x-w/2;y=a.y-h/2}
+  else{x=Math.min(a.x,b.x);y=Math.min(a.y,b.y);const k=Math.min(dx/sw,dy/sh);w=sw*k;h=sh*k}
+  x=Math.max(0,Math.min(x,view.width-w));y=Math.max(0,Math.min(y,view.height-h));
+  const src=document.createElement('canvas');src.width=sw;src.height=sh;src.getContext('2d').drawImage(pend,0,0);
+  im={src,base:null,crop:null,n:0,x0:x,y0:y,x1:x+w,y1:y+h};
+  st('Use the floating toolbar to crop, rotate, remove the background or delete. Tap the check mark to place it.');
+}
+function both(fn){im.src=fn(im.src);if(im.base)im.base=fn(im.base)}
+function rot(cv,d){const n=document.createElement('canvas');n.width=cv.height;n.height=cv.width;const c=n.getContext('2d');c.translate(n.width/2,n.height/2);c.rotate(d*Math.PI/2);c.drawImage(cv,-cv.width/2,-cv.height/2);return n}
+function irot(d){
+  if(!im||im.crop)return;both(c=>rot(c,d));
+  const cx=(im.x0+im.x1)/2,cy=(im.y0+im.y1)/2,w=im.y1-im.y0,h=im.x1-im.x0;
+  im.x0=Math.max(0,Math.min(cx-w/2,view.width-w));im.x1=im.x0+w;im.y0=Math.max(0,Math.min(cy-h/2,view.height-h));im.y1=im.y0+h;show();
+}
+function applyCrop(){
+  const c=im.crop,bw=im.x1-im.x0,bh=im.y1-im.y0;
+  if(c.x1-c.x0<10||c.y1-c.y0<10){im.crop=null;return}
+  both(cv=>{const fx=cv.width/bw,fy=cv.height/bh,sx=(c.x0-im.x0)*fx,sy=(c.y0-im.y0)*fy,sw=(c.x1-c.x0)*fx,sh=(c.y1-c.y0)*fy,n=document.createElement('canvas');
+    n.width=Math.max(1,Math.round(sw));n.height=Math.max(1,Math.round(sh));n.getContext('2d').drawImage(cv,sx,sy,sw,sh,0,0,n.width,n.height);return n});
+  im.x0=c.x0;im.y0=c.y0;im.x1=c.x1;im.y1=c.y1;im.crop=null;
+}
+function rmbg(cv,tol){
+  const w=cv.width,h=cv.height,c=document.createElement('canvas');c.width=w;c.height=h;
+  const x=c.getContext('2d');x.drawImage(cv,0,0);const id=x.getImageData(0,0,w,h),d=id.data;
+  let r=0,g=0,b=0,n=0;
+  for(const [cx,cy] of [[0,0],[w-4,0],[0,h-4],[w-4,h-4]])for(let j=0;j<4;j++)for(let i=0;i<4;i++){const k=((Math.max(0,cy)+j)*w+Math.max(0,cx)+i)*4;r+=d[k];g+=d[k+1];b+=d[k+2];n++}
+  r/=n;g/=n;b/=n;const t2=tol*tol;
+  const near=p=>{const k=p*4;if(d[k+3]===0)return true;const a=d[k]-r,e=d[k+1]-g,f=d[k+2]-b;return a*a+e*e+f*f<t2};
+  const seen=new Uint8Array(w*h),stack=[],push=p=>{if(!seen[p]&&near(p)){seen[p]=1;stack.push(p)}};
+  for(let i=0;i<w;i++){push(i);push((h-1)*w+i)}for(let j=0;j<h;j++){push(j*w);push(j*w+w-1)}
+  while(stack.length){const p=stack.pop(),i=p%w,j=(p-i)/w;if(i>0)push(p-1);if(i<w-1)push(p+1);if(j>0)push(p-w);if(j<h-1)push(p+w)}
+  for(let p=0;p<w*h;p++)if(seen[p])d[p*4+3]=0;
+  x.putImageData(id,0,0);return c;
+}
+function commitIm(){
+  const p=pages[cur];if(!im||!p)return;if(im.crop)applyCrop();
+  snap(p);p.cv.getContext('2d').drawImage(im.src,im.x0,im.y0,im.x1-im.x0,im.y1-im.y0);
+  pend=im.src;im=null;show();st('Placed. Tap the page to add another copy, or pick another tool.');
+}
+$('icrop').onclick=()=>{
+  if(!im)return;
+  if(im.crop){applyCrop();st('Cropped.')}else{im.crop={x0:im.x0,y0:im.y0,x1:im.x1,y1:im.y1};st('Drag the corners of the dashed box, then tap Apply crop.')}
+  show();
+};
+$('irl').onclick=()=>irot(-1);$('irr').onclick=()=>irot(1);
+const TOL=[40,70,100,140];
+$('ibg').onclick=()=>{
+  if(!im)return;if(im.crop)return st('Finish cropping first.');
+  if(im.n>=TOL.length){im.src=im.base;im.base=null;im.n=0;show();return st('Background restored.')}
+  if(!im.base)im.base=im.src;
+  im.src=rmbg(im.base,TOL[im.n]);im.n++;show();
+  st('Background removed (level '+im.n+' of '+TOL.length+'). Tap again to remove more; after the last level it restores the original.');
+};
+$('idel').onclick=()=>{
+  if(!im)return;
+  if(im.crop){im.crop=null;st('Crop cancelled.')}else{im=null;st('Image discarded.')}
+  show();
+};
+$('iok').onclick=commitIm;
+let zoom=1;
+function setZoom(z){zoom=Math.min(3,Math.max(.5,z));view.style.width=zoom*100+'%';show();st('Zoom '+Math.round(zoom*100)+'%. Switch off the active tool to scroll a zoomed page by touch.')}
+$('zin').onclick=()=>setZoom(zoom+.25);$('zout').onclick=()=>setZoom(zoom-.25);
+$('pdelpg').onclick=()=>{
+  if(!pages.length)return;
+  if(!confirm('Delete page '+(cur+1)+'? This cannot be undone.'))return;
+  pages.splice(cur,1);cur=Math.max(0,Math.min(cur,pages.length-1));sel=null;$('word').value='';show();
+  st(pages.length?'Page deleted.':'All pages deleted. Use Insert page here to add one, or open another file.');
+};
+function rotate(dir){
+  const p=pages[cur];if(!p)return;
+  const o=p.cv,n=document.createElement('canvas');n.width=o.height;n.height=o.width;
+  const c=n.getContext('2d');c.translate(n.width/2,n.height/2);c.rotate(dir*Math.PI/2);c.drawImage(o,-o.width/2,-o.height/2);
+  p.cv=n;p.words=[];p.u=[];sel=null;$('word').value='';show();
+  st('Page rotated. Run OCR again to refresh text recognition for it.');
+}
+$('rl').onclick=()=>rotate(-1);$('rr').onclick=()=>rotate(1);
+function blank(){
+  const b=pages[cur],cv=document.createElement('canvas');cv.width=b?b.cv.width:1190;cv.height=b?b.cv.height:1684;
+  const c=cv.getContext('2d');c.fillStyle='#fff';c.fillRect(0,0,cv.width,cv.height);return{cv,words:[],s:b?b.s:2};
+}
+function insertAt(i,arr){pages.splice(i,0,...arr);cur=i;sel=null;$('word').value='';$('ins').close();show()}
+$('pins').onclick=()=>$('ins').showModal();
+$('insC').onclick=()=>$('ins').close();
+$('insB').onclick=()=>{insertAt(pages.length?cur:0,[blank()]);st('Blank page added as page '+(cur+1)+'.')};
+$('insA').onclick=()=>{insertAt(pages.length?cur+1:0,[blank()]);st('Blank page added as page '+(cur+1)+'.')};
+$('insF').onclick=()=>{$('ins').close();$('insf').click()};
+$('insf').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  try{const arr=await readPages(f);insertAt(pages.length?cur+1:0,arr);st(arr.length+' page(s) inserted starting at page '+(cur+1)+'.')}
+  catch(err){st('Could not insert: '+err.message)}
 };
 
 $('save').onclick=async()=>{
@@ -349,4 +497,5 @@ $('save').onclick=async()=>{
     document.body.appendChild(a);a.click();a.remove();st('Saved. The PDF keeps the original look and has a selectable, searchable text layer.');
   }catch(err){st('Could not save: '+err.message)}
 };
+show();
 </script></body></html>
