@@ -47,7 +47,7 @@ input[type=text]{min-width:0;flex:1 1 140px;cursor:text}input[type=color]{width:
 .pt>*{height:38px;padding:6px 10px;border:1px solid var(--bd);border-radius:10px;background:var(--card);color:var(--fg)}
 .pt button.on{background:var(--act);border-color:var(--ac);color:var(--ac)}
 .pt label{display:flex;gap:4px;align-items:center;font-size:.85rem}
-.pt select{max-width:130px}.pt input[type=color]{width:44px;padding:3px}#sz{width:76px;border:0;padding:0}
+.pt select{max-width:130px}.pt input[type=color]{width:44px;padding:3px}#sz,#wt{width:76px;border:0;padding:0}
 #pmv,#imv{touch-action:none;cursor:grab}#pop input[type=text]{min-width:170px;padding:6px 8px}
 #iok{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;border-color:transparent}
 dialog{max-width:min(92vw,560px);padding:18px;border:1px solid var(--bd);border-radius:18px;background:var(--card);color:var(--fg);box-shadow:0 24px 60px rgba(0,0,0,.35)}
@@ -107,6 +107,7 @@ dialog::backdrop{background:rgba(10,14,25,.5);backdrop-filter:blur(3px)}dialog p
 <div class="pr pt"><input type="checkbox" id="bold" hidden><input type="checkbox" id="ital" hidden>
 <button id="bb" title="Bold" aria-label="Bold"><b>B</b></button><button id="bi" title="Italic" aria-label="Italic"><i>I</i></button>
 <label title="Text size">T↕<input type="range" id="sz" min="40" max="160" value="95"></label>
+<label title="Text thickness">Weight<input type="range" id="wt" min="0" max="12" value="0"></label>
 <select id="fam" title="Font" aria-label="Font"></select>
 <input type="color" id="tc" value="#000000" title="Text color" aria-label="Text color">
 <button id="ptr" title="Transparent background" aria-label="Transparent background">◩</button>
@@ -150,7 +151,7 @@ const ready=async()=>{try{await document.fonts.load(fontStr(20),'Ag')}catch(e){}
 const refresh=async()=>{await ready();show()};
 const styl=()=>{if(sel)stFor=sel;refresh()};
 $('word').addEventListener('input',refresh);
-['sz','fit','fam'].forEach(id=>{$(id).addEventListener('input',styl);$(id).addEventListener('change',styl)});
+['sz','wt','fit','fam'].forEach(id=>{$(id).addEventListener('input',styl);$(id).addEventListener('change',styl)});
 
 const corners=w=>[[w.x0,w.y0],[w.x1,w.y0],[w.x0,w.y1],[w.x1,w.y1]];
 const hsize=()=>16*view.width/Math.max(1,view.getBoundingClientRect().width);
@@ -171,7 +172,9 @@ function paintOn(c,src,w,t){
   if(!w.tr){c.fillStyle=bg;c.fillRect(bx-3,by-3,bw+6,bh+6)}
   c.fillStyle=tcolFor===w?tcol:(w.tr?'#111':ink);c.textBaseline='middle';c.font=fontStr(bh*$('sz').value/100);
   const tw=c.measureText(t).width,cy=by+bh/2,fit=$('fit').checked&&tw>0;
-  if(fit){c.save();c.translate(bx,0);c.scale(bw/tw,1);c.fillText(t,0,cy);c.restore()}else c.fillText(t,bx,cy);
+  const wt=$('wt').value*bh*$('sz').value/10000;
+  const draw=x=>{c.fillText(t,x,cy);if(wt>0){c.save();c.lineWidth=wt;c.lineJoin='round';c.strokeStyle=c.fillStyle;c.strokeText(t,x,cy);c.restore()}};
+  if(fit){c.save();c.translate(bx,0);c.scale(bw/tw,1);draw(0);c.restore()}else draw(bx);
   return fit?bw:tw;
 }
 function paint(p,w,t){const tw=paintOn(p.cv.getContext('2d'),p.cv,w,t);w.x1=Math.max(w.x1,w.x0+Math.round(tw));w.text=t}
