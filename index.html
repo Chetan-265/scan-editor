@@ -1,58 +1,77 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#3d5afe">
 <title>Scan Editor</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tinos:wght@400;700&family=Arimo:wght@400;700&family=Cousine:wght@400;700&family=Roboto:wght@400;700&family=Open+Sans:wght@400;700&family=Lato:wght@400;700&family=Noto+Sans:wght@400;700&family=Noto+Serif:wght@400;700&family=Merriweather:wght@400;700&family=Lora:wght@400;700&family=EB+Garamond:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Playfair+Display:wght@400;700&family=Source+Serif+4:wght@400;700&family=Inconsolata:wght@400;700&family=Caveat:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Tinos:wght@400;700&family=Arimo:wght@400;700&family=Cousine:wght@400;700&family=Roboto:wght@400;700&family=Open+Sans:wght@400;700&family=Lato:wght@400;700&family=Noto+Sans:wght@400;700&family=Noto+Serif:wght@400;700&family=Merriweather:wght@400;700&family=Lora:wght@400;700&family=EB+Garamond:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Playfair+Display:wght@400;700&family=Source+Serif+4:wght@400;700&family=Inconsolata:wght@400;700&family=Caveat:wght@400;700&display=swap">
 <style>
-:root{--bg:#e9ecf0;--card:#fff;--ac:#1f6fd1;--act:#dcebfd;--bd:#cdd5df;--fg:#1b2330;--mut:#5f6b7c;color-scheme:light dark}
-@media(prefers-color-scheme:dark){:root{--bg:#12161c;--card:#1b212a;--ac:#6cb0f5;--act:#243a57;--bd:#313a47;--fg:#e8ecf2;--mut:#98a3b3}}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
-main{max-width:1000px;margin:0 auto;padding:14px}
-header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px}
-h1{font-size:1.25rem;margin:0}h1 small{display:block;font-size:.78rem;font-weight:400;color:var(--mut)}
+:root{--bg:#eef1f6;--desk:#dde3ee;--card:#fff;--ac:#3d5afe;--ac2:#7c4dff;--act:#e8ecff;--bd:#dfe3ec;--fg:#161b26;--mut:#667085;--sh:0 1px 2px rgba(16,24,40,.06),0 8px 24px rgba(16,24,40,.08);--r:14px;color-scheme:light dark}
+@media(prefers-color-scheme:dark){:root{--bg:#0e1117;--desk:#0a0c11;--card:#171b24;--ac:#8ea2ff;--ac2:#b49bff;--act:#232b4d;--bd:#272d3a;--fg:#e9ecf3;--mut:#9aa4b5;--sh:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.35)}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;min-height:100dvh;background:radial-gradient(1100px 480px at 8% -8%,var(--act),transparent 60%),var(--bg);color:var(--fg);font:15px/1.45 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1280px;margin:0 auto;padding:0 12px 96px;display:grid;gap:12px;grid-template-columns:minmax(0,1fr);grid-template-areas:"hd" "stage"}
+header{grid-area:hd;position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 4px;background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.brand{display:flex;gap:10px;align-items:center;min-width:0}
+.logo{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;font-weight:700;box-shadow:var(--sh)}
+h1{margin:0;font-size:1.15rem;line-height:1.2}h1 small{display:block;font-size:.76rem;font-weight:400;color:var(--mut)}
 .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-button,select,input[type=text],.btn{font:inherit;padding:8px 14px;border:1px solid var(--bd);border-radius:7px;background:var(--card);color:var(--fg);cursor:pointer}
-.p{background:var(--ac);border-color:var(--ac);color:#fff}
+button,select,input[type=text],.btn{font:inherit;padding:9px 14px;border:1px solid var(--bd);border-radius:10px;background:var(--card);color:var(--fg);cursor:pointer;transition:background .15s,border-color .15s,transform .05s}
+button:hover,.btn:hover{border-color:var(--ac)}button:active{transform:scale(.97)}
+.p{background:linear-gradient(135deg,var(--ac),var(--ac2));border-color:transparent;color:#fff;font-weight:600}
+.p:hover{border-color:transparent;filter:brightness(1.07)}
 :focus-visible{outline:2px solid var(--ac);outline-offset:2px}
-.tb{display:flex;overflow-x:auto;border:1px solid var(--ac);border-radius:9px;background:var(--card)}
-.tb button{flex:1 0 auto;border:0;border-right:1px solid var(--ac);border-radius:0;background:transparent;color:var(--ac);padding:11px 16px;white-space:nowrap}
-.tb button:last-child{border-right:0}.tb button.on{background:var(--act);font-weight:600}
-.tb i{font-style:normal;margin-right:7px;font-size:1.05em}
-.ctx{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px;padding:10px;background:var(--card);border:1px solid var(--bd);border-radius:9px}
-.ctx[hidden]{display:none}.ctx label{display:flex;gap:6px;align-items:center}
-input[type=text]{min-width:0;flex:1 1 140px;cursor:text}input[type=color]{width:42px;height:34px;padding:2px}
-#st{color:var(--mut);margin:10px 2px;min-height:1.4em;font-size:.9rem}
-.nav{display:flex;gap:10px;align-items:center;justify-content:center;margin-bottom:8px}
-.sheet{background:var(--card);border:1px solid var(--bd);border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.14);overflow:hidden}
-#view{display:block;width:100%;height:auto;touch-action:manipulation}
-dialog{border:1px solid var(--bd);border-radius:12px;background:var(--card);color:var(--fg);max-width:92vw}
-#sc{width:100%;max-width:600px;height:auto;background:#fff;border:1px dashed var(--bd);touch-action:none;border-radius:6px}
-
-.sheet{position:relative}
-#pop,#ipop{position:absolute;z-index:5;display:flex;flex-direction:column;gap:6px;max-width:calc(100% - 8px);padding:6px;background:var(--card);border:1px solid var(--ac);border-radius:9px;box-shadow:0 4px 18px rgba(31,111,209,.35)}
+.stage{grid-area:stage;min-width:0;display:flex;flex-direction:column;gap:10px}
+#tools{grid-area:tools;position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;gap:2px;overflow-x:auto;padding:6px 8px calc(6px + env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--bd);box-shadow:0 -6px 24px rgba(16,24,40,.12)}
+#tools button{flex:1 0 64px;display:flex;flex-direction:column;align-items:center;gap:2px;border:0;background:transparent;color:var(--mut);padding:8px 6px;border-radius:12px;font-size:.72rem;white-space:nowrap}
+#tools i{font-style:normal;font-size:1.35rem;line-height:1;margin:0;color:var(--fg)}
+#tools button.on{background:var(--act);color:var(--ac);font-weight:600}#tools button.on i{color:var(--ac)}
+.ctx{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;background:var(--card);border:1px solid var(--bd);border-radius:var(--r);box-shadow:var(--sh)}
+.ctx[hidden]{display:none}.ctx label{display:flex;gap:6px;align-items:center;color:var(--mut);font-size:.9rem}
+input[type=text]{min-width:0;flex:1 1 140px;cursor:text}input[type=color]{width:44px;height:38px;padding:3px}
+#st{display:flex;gap:8px;align-items:center;min-height:40px;padding:9px 12px;color:var(--mut);font-size:.88rem;background:var(--card);border:1px solid var(--bd);border-radius:var(--r)}
+#st::before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,var(--ac),var(--ac2))}
+.nav{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px;background:var(--card);border:1px solid var(--bd);border-radius:var(--r);box-shadow:var(--sh)}
+.tb.sm{display:inline-flex;overflow:hidden;border:1px solid var(--bd);border-radius:11px}
+.tb.sm button{border:0;border-right:1px solid var(--bd);border-radius:0;padding:8px 12px}.tb.sm button:last-child{border-right:0}
+.insb{color:var(--ac);border-color:var(--ac);background:var(--act)}
+#prev{margin-left:auto}#pg{min-width:54px;text-align:center;color:var(--mut);font-variant-numeric:tabular-nums}
+.sheet{position:relative;overflow:auto;min-height:220px;max-height:calc(100dvh - 250px);background:var(--desk);border:1px solid var(--bd);border-radius:18px;box-shadow:var(--sh)}
+#view{display:block;width:100%;height:auto;margin:0 auto;background:#fff;box-shadow:0 4px 18px rgba(0,0,0,.18);touch-action:manipulation}
+#empty{display:none;flex-direction:column;align-items:center;gap:10px;padding:56px 20px;text-align:center;color:var(--mut)}
+#view[style*="display: none"]~#empty{display:flex}
+#empty .art{font-size:2.6rem}#empty b{color:var(--fg);font-size:1.1rem}
+#pop,#ipop{position:absolute;z-index:5;display:flex;flex-direction:column;gap:8px;max-width:calc(100% - 8px);padding:8px;background:var(--card);border:1px solid var(--bd);border-radius:14px;box-shadow:0 12px 32px rgba(16,24,40,.25),0 0 0 1px var(--ac)}
 #pop[hidden],#ipop[hidden]{display:none}
 .pr{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.pt{border:1px solid var(--ac);border-radius:7px;gap:0;overflow:hidden}
-.pt>*{border:0;border-right:1px solid var(--ac);border-radius:0;padding:6px 10px;background:transparent;color:var(--ac);height:36px}
-.pt>*:last-child{border-right:0}.pt button.on{background:var(--act)}
+.pt>*{height:38px;padding:6px 10px;border:1px solid var(--bd);border-radius:10px;background:var(--card);color:var(--fg)}
+.pt button.on{background:var(--act);border-color:var(--ac);color:var(--ac)}
 .pt label{display:flex;gap:4px;align-items:center;font-size:.85rem}
-.pt select{max-width:130px}.pt input[type=color]{width:44px;padding:3px}#sz{width:76px}#pmv{touch-action:none;cursor:grab}
-#pop input[type=text]{min-width:170px;padding:6px 8px}
-
-.sheet{overflow:auto;max-height:80vh}#view{margin:0 auto}
-.nav{flex-wrap:wrap}.tb.sm{display:inline-flex;overflow:visible}.tb.sm button{padding:9px 14px}
-.insb{border-color:var(--ac);color:var(--ac)}
+.pt select{max-width:130px}.pt input[type=color]{width:44px;padding:3px}#sz{width:76px;border:0;padding:0}
+#pmv,#imv{touch-action:none;cursor:grab}#pop input[type=text]{min-width:170px;padding:6px 8px}
+#iok{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;border-color:transparent}
+dialog{max-width:min(92vw,560px);padding:18px;border:1px solid var(--bd);border-radius:18px;background:var(--card);color:var(--fg);box-shadow:0 24px 60px rgba(0,0,0,.35)}
+dialog::backdrop{background:rgba(10,14,25,.5);backdrop-filter:blur(3px)}dialog p{margin:0 0 12px}
+#sc{width:100%;max-width:600px;height:auto;background:#fff;border:1px dashed var(--bd);border-radius:12px;touch-action:none}
 #ins .row{flex-direction:column;align-items:stretch}
-#iok{background:var(--ac)!important;color:#fff!important}
+@media(min-width:760px){
+  main{grid-template-columns:96px minmax(0,1fr);grid-template-areas:"hd hd" "tools stage";padding-bottom:24px}
+  #tools{position:sticky;top:76px;left:auto;right:auto;bottom:auto;align-self:start;flex-direction:column;overflow:visible;padding:8px;border:1px solid var(--bd);border-radius:18px;box-shadow:var(--sh)}
+  #tools button{flex:none;padding:10px 4px}
+}
+@media(max-width:759px){.sheet{max-height:none}}
+@media(max-width:560px){
+  h1 small{display:none}header button,header .btn{padding:8px 11px}
+  #pop,#ipop{left:4px!important;right:4px;max-width:none}
+}
+@media(pointer:coarse){button,select,input[type=text],.btn{min-height:44px}.pt>*{height:44px}}
 </style></head><body><main>
 <header>
-<h1>Scan Editor<small>Free and private. Everything stays in your browser.</small></h1>
+<div class="brand"><span class="logo" aria-hidden="true">SE</span><h1>Scan Editor<small>Free and private. Everything stays in your browser.</small></h1></div>
 <div class="row"><label class="btn" for="file">Open file</label><input type="file" id="file" accept="application/pdf,image/*" hidden>
 <button id="ocr">Run OCR</button><button class="p" id="save">Save PDF</button></div>
 </header>
-<div class="tb" role="toolbar" aria-label="Editing tools">
+<div id="tools" role="toolbar" aria-label="Editing tools">
 <button data-t="text"><i>T</i>Text</button>
 <button id="bimg"><i>▣</i>Images</button>
 <button id="bsig"><i>✍</i>Sign</button>
@@ -61,6 +80,7 @@ dialog{border:1px solid var(--bd);border-radius:12px;background:var(--card);colo
 <button data-t="shape"><i>◇</i>Shapes</button>
 <button id="undo"><i>↶</i>Undo</button>
 </div>
+<div class="stage">
 <div class="ctx" data-for="text" hidden>
 <label><input type="checkbox" id="fit">Fit text to box width</label>
 <input type="text" id="fnd" placeholder="Find"><input type="text" id="rep" placeholder="Replace with"><button id="all">Replace all</button>
@@ -81,6 +101,7 @@ dialog{border:1px solid var(--bd);border-radius:12px;background:var(--card);colo
 <button id="prev">Prev</button><span id="pg">0 / 0</span><button id="next">Next</button>
 </div>
 <div class="sheet" id="sheet"><canvas id="view"></canvas>
+<div id="empty"><div class="art">📄</div><b>Open a scanned PDF or photo</b><span>Then run OCR to edit text, or use the tools to sign, annotate and more.</span><label class="btn p" for="file">Open a file</label></div>
 <div id="pop" hidden>
 <div class="pr"><input type="text" id="word" placeholder="Type your text" aria-label="Text"><button class="p" id="apply" title="Apply text" aria-label="Apply text">✓</button></div>
 <div class="pr pt"><input type="checkbox" id="bold" hidden><input type="checkbox" id="ital" hidden>
@@ -95,16 +116,19 @@ dialog{border:1px solid var(--bd);border-radius:12px;background:var(--card);colo
 <button id="pdel" title="Delete" aria-label="Delete">✕</button></div>
 </div>
 <div id="ipop" hidden><div class="pr pt">
+<button id="imv" title="Drag to move" aria-label="Move image">✥</button>
 <button id="icrop" title="Crop">Crop</button>
 <button id="irl" title="Rotate left" aria-label="Rotate left">↺</button><button id="irr" title="Rotate right" aria-label="Rotate right">↻</button>
 <button id="ibg" title="Remove background">Remove BG</button>
 <button id="idel" title="Delete image" aria-label="Delete image">✕</button>
 <button id="iok" title="Place image on page" aria-label="Place image on page">✓</button></div></div></div>
+</div>
 <dialog id="sg"><p>Sign with your finger or mouse</p><canvas id="sc" width="600" height="220"></canvas>
-<div class="row" style="margin-top:10px"><button id="scl">Clear</button><button id="sx">Cancel</button><button class="p" id="sok">Use signature</button></div></dialog>
+<div class="row" style="margin-top:10px"><button id="supl">Upload image</button><button id="scl">Clear</button><button id="sx">Cancel</button><button class="p" id="sok">Use signature</button></div></dialog>
 <dialog id="ins"><p><strong>Insert page here</strong></p><div class="row">
 <button id="insB">Blank page before this page</button><button id="insA">Blank page after this page</button>
 <button id="insF">Pages from a PDF or image, after this page</button><button id="insC">Cancel</button></div></dialog>
+<input type="file" id="sigf" accept="image/*" hidden>
 <input type="file" id="insf" accept="application/pdf,image/*" hidden>
 <input type="file" id="imgf" accept="image/*" hidden>
 </main>
@@ -202,7 +226,7 @@ function floatAt(el,b){
   const r=view.getBoundingClientRect(),k=r.width/view.width,pw=el.offsetWidth,ph=el.offsetHeight;
   let y=b.y0*k-ph-10;if(y<4)y=b.y1*k+10;
   y=Math.max(4,Math.min(y,r.height-ph-4));
-  el.style.left=Math.max(4,Math.min(b.x0*k,r.width-pw-4))+'px';el.style.top=y+'px';
+  el.style.left=(view.offsetLeft+Math.max(4,Math.min(b.x0*k,r.width-pw-4)))+'px';el.style.top=(view.offsetTop+y)+'px';
 }
 function placePop(){
   floatAt($('pop'),tool==='text'&&sel?sel:null);
@@ -446,6 +470,22 @@ $('idel').onclick=()=>{
   show();
 };
 $('iok').onclick=commitIm;
+const imv=$('imv');
+imv.style.touchAction='none';imv.style.cursor='grab';
+imv.addEventListener('pointerdown',e=>{
+  if(!im)return;const t=im.crop||im;
+  drag={t:'m',a:pt(e),o:{x0:t.x0,y0:t.y0,x1:t.x1,y1:t.y1}};imv.setPointerCapture(e.pointerId);e.preventDefault();
+});
+imv.addEventListener('pointermove',e=>{if(drag&&drag.t==='m'&&im)applyDrag(pt(e))});
+imv.addEventListener('pointerup',()=>{drag=null;show()});
+$('supl').onclick=()=>{$('sg').close();$('sigf').click()};
+$('sigf').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  try{
+    im=null;pend=rmbg(fitMax(await createImageBitmap(f),1400),70);setTool('image');
+    st('Signature loaded with its background removed. Tap the page where it should go, or drag a box. Use Remove BG in the toolbar if parts of the paper remain.');
+  }catch(err){st('Could not open that image: '+err.message)}
+};
 let zoom=1;
 function setZoom(z){zoom=Math.min(3,Math.max(.5,z));view.style.width=zoom*100+'%';show();st('Zoom '+Math.round(zoom*100)+'%. Switch off the active tool to scroll a zoomed page by touch.')}
 $('zin').onclick=()=>setZoom(zoom+.25);$('zout').onclick=()=>setZoom(zoom-.25);
