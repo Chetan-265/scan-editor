@@ -41,8 +41,8 @@ input[type=text]{min-width:0;flex:1 1 140px;cursor:text}input[type=color]{width:
 #empty{display:none;flex-direction:column;align-items:center;gap:10px;padding:56px 20px;text-align:center;color:var(--mut)}
 #view[style*="display: none"]~#empty{display:flex}
 #empty .art{font-size:2.6rem}#empty b{color:var(--fg);font-size:1.1rem}
-#pop,#ipop{position:absolute;z-index:5;display:flex;flex-direction:column;gap:8px;max-width:calc(100% - 8px);padding:8px;background:var(--card);border:1px solid var(--bd);border-radius:14px;box-shadow:0 12px 32px rgba(16,24,40,.25),0 0 0 1px var(--ac)}
-#pop[hidden],#ipop[hidden]{display:none}
+#pop,#ipop,#opop{position:absolute;z-index:5;display:flex;flex-direction:column;gap:8px;max-width:calc(100% - 8px);padding:8px;background:var(--card);border:1px solid var(--bd);border-radius:14px;box-shadow:0 12px 32px rgba(16,24,40,.25),0 0 0 1px var(--ac)}
+#pop[hidden],#ipop[hidden],#opop[hidden]{display:none}
 .pr{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .pt>*{height:38px;padding:6px 10px;border:1px solid var(--bd);border-radius:10px;background:var(--card);color:var(--fg)}
 .pt button.on{background:var(--act);border-color:var(--ac);color:var(--ac)}
@@ -62,7 +62,7 @@ dialog::backdrop{background:rgba(10,14,25,.5);backdrop-filter:blur(3px)}dialog p
 @media(max-width:759px){.sheet{max-height:none}}
 @media(max-width:560px){
   h1 small{display:none}header button,header .btn{padding:8px 11px}
-  #pop,#ipop{left:4px!important;right:4px;max-width:none}
+  #pop,#ipop,#opop{left:4px!important;right:4px;max-width:none}
 }
 @media(pointer:coarse){button,select,input[type=text],.btn{min-height:44px}.pt>*{height:44px}}
 </style></head><body><main>
@@ -72,6 +72,7 @@ dialog::backdrop{background:rgba(10,14,25,.5);backdrop-filter:blur(3px)}dialog p
 <button id="ocr">Run OCR</button><button class="p" id="save">Save PDF</button></div>
 </header>
 <div id="tools" role="toolbar" aria-label="Editing tools">
+<button data-t="select"><i>↖</i>Select</button>
 <button data-t="text"><i>T</i>Text</button>
 <button id="bimg"><i>▣</i>Images</button>
 <button id="bsig"><i>✍</i>Sign</button>
@@ -85,7 +86,7 @@ dialog::backdrop{background:rgba(10,14,25,.5);backdrop-filter:blur(3px)}dialog p
 <label><input type="checkbox" id="fit">Fit text to box width</label>
 <input type="text" id="fnd" placeholder="Find"><input type="text" id="rep" placeholder="Replace with"><button id="all">Replace all</button>
 </div>
-<div class="ctx" data-for="annot shape" hidden>
+<div class="ctx" data-for="annot shape select" hidden>
 <select id="sub" aria-label="Style"></select><label>Color <input type="color" id="col" value="#d4351c"></label>
 <label>Thickness <select id="wid"><option>1</option><option selected>2</option><option>4</option><option>6</option></select></label>
 </div>
@@ -116,6 +117,7 @@ dialog::backdrop{background:rgba(10,14,25,.5);backdrop-filter:blur(3px)}dialog p
 <button id="pdup" title="Duplicate" aria-label="Duplicate">⧉</button>
 <button id="pdel" title="Delete" aria-label="Delete">✕</button></div>
 </div>
+<div id="opop" hidden><div class="pr pt"><button id="oed" title="Edit image">Edit image</button><button id="odup" title="Duplicate" aria-label="Duplicate">⧉</button><button id="odel" title="Delete" aria-label="Delete">✕</button></div></div>
 <div id="ipop" hidden><div class="pr pt">
 <button id="imv" title="Drag to move" aria-label="Move image">✥</button>
 <button id="icrop" title="Crop">Crop</button>
@@ -139,14 +141,30 @@ dialog::backdrop{background:rgba(10,14,25,.5);backdrop-filter:blur(3px)}dialog p
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 const $=id=>document.getElementById(id),st=m=>$('st').textContent=m;
-let pages=[],cur=0,sel=null,tool='',drag=null,pend=null,tcol='#000000',tcolFor=null,stFor=null,im=null;
+let pages=[],cur=0,sel=null,tool='',drag=null,pend=null,tcol='#000000',tcolFor=null,stFor=null,im=null,so=null;
 const view=$('view'),vc=view.getContext('2d');
-const HINT={text:'Tap a word to edit it, or drag on empty space to add a text box. A toolbar appears next to the text. Drag a red corner to resize the box.',whiteout:'Drag over anything to cover it with the paper color.',annot:'Drag to highlight, or switch to Pen to draw freehand.',shape:'Drag to draw the shape.',image:'Tap the page to place it, or drag a box. Then use the floating toolbar: crop, rotate, remove background, delete, or the check mark to place it.'};
+const HINT={select:'Tap a drawing, shape, highlight, whiteout or image to select it. Drag to move it, drag a corner to resize, change color or thickness above, or use the buttons beside it.',text:'Tap a word to edit it, or drag on empty space to add a text box. A toolbar appears next to the text. Drag a red corner to resize the box. Tap text you already placed to edit it again.',whiteout:'Drag over anything to cover it with the paper color.',annot:'Drag to highlight, or switch to Pen to draw freehand.',shape:'Drag to draw the shape.',image:'Tap the page to place it, or drag a box. Then use the floating toolbar: crop, rotate, remove background, delete, or the check mark to place it.'};
 const SUB={annot:[['hl','Highlight'],['pen','Pen']],shape:[['rect','Rectangle'],['ell','Ellipse'],['line','Line'],['arr','Arrow']]};
 const COL={hl:'#ffe14d',pen:'#1a3cff',rect:'#d4351c',ell:'#d4351c',line:'#d4351c',arr:'#d4351c'};
 const FONTS=[['Tinos (Times-like)','Tinos','serif'],['Arimo (Arial-like)','Arimo','sans-serif'],['Cousine (Courier-like)','Cousine','monospace'],['Georgia','Georgia','serif'],['Times New Roman','"Times New Roman"','serif'],['Palatino','Palatino,"Palatino Linotype"','serif'],['Baskerville','Baskerville','serif'],['Helvetica','Helvetica','sans-serif'],['Arial','Arial','sans-serif'],['Verdana','Verdana','sans-serif'],['Trebuchet MS','"Trebuchet MS"','sans-serif'],['Courier New','"Courier New"','monospace'],['Roboto','Roboto','sans-serif'],['Open Sans','"Open Sans"','sans-serif'],['Lato','Lato','sans-serif'],['Noto Sans','"Noto Sans"','sans-serif'],['Noto Serif','"Noto Serif"','serif'],['Merriweather','Merriweather','serif'],['Lora','Lora','serif'],['EB Garamond','"EB Garamond"','serif'],['Libre Baskerville','"Libre Baskerville"','serif'],['Playfair Display','"Playfair Display"','serif'],['Source Serif 4','"Source Serif 4"','serif'],['Inconsolata','Inconsolata','monospace'],['Caveat (handwriting)','Caveat','cursive']];
 FONTS.forEach(([n,f,g])=>{const o=document.createElement('option');o.textContent=n;o.value=f+','+g;$('fam').appendChild(o)});
-const fontStr=px=>($('ital').checked?'italic ':'')+($('bold').checked?'bold ':'')+Math.round(px)+'px '+$('fam').value;
+const readStyle=w=>({fam:$('fam').value,bold:$('bold').checked,ital:$('ital').checked,sz:+$('sz').value,wt:+$('wt').value,fit:$('fit').checked,col:w&&tcolFor===w?tcol:null});
+const fontStr=(px,s)=>{s=s||readStyle();return(s.ital?'italic ':'')+(s.bold?'bold ':'')+Math.round(px)+'px '+s.fam};
+function loadStyle(w){
+  const L=w.L;$('fam').value=L.fam;$('bold').checked=L.bold;$('ital').checked=L.ital;$('sz').value=L.sz;$('wt').value=L.wt;$('fit').checked=L.fit;
+  $('bb').classList.toggle('on',L.bold);$('bi').classList.toggle('on',L.ital);
+  if(L.col){tcol=L.col;tcolFor=w;$('tc').value=L.col}else if(tcolFor===w)tcolFor=null;
+}
+function setLayer(p,w,t){
+  const st=readStyle(w);if(w.o0===undefined)w.o0=w.text;
+  const tw=paintOn(document.createElement('canvas').getContext('2d'),p.cv,w,t,st);
+  w.L=st;w.text=t;w.x1=Math.max(w.x1,w.x0+Math.round(tw));
+}
+function flat(p){
+  if(!p.words.some(w=>w.L)&&!O(p).length)return p.cv;
+  const c=document.createElement('canvas');c.width=p.cv.width;c.height=p.cv.height;
+  const x=c.getContext('2d');x.drawImage(p.cv,0,0);O(p).forEach(o=>drawObj(x,p,o));p.words.forEach(w=>{if(w.L)paintOn(x,p.cv,w,w.text,w.L)});return c;
+}
 const ready=async()=>{try{await document.fonts.load(fontStr(20),'Ag')}catch(e){}};
 const refresh=async()=>{await ready();show()};
 const styl=()=>{if(sel)stFor=sel;refresh()};
@@ -166,23 +184,24 @@ function samp(src,w){
   a.sort((m,n)=>n[0]-m[0]);
   return [avg(a.slice(0,Math.ceil(a.length*.3))),avg(a.slice(-Math.ceil(a.length*.03)))];
 }
-function paintOn(c,src,w,t){
+function paintOn(c,src,w,t,s){
+  s=s||readStyle(w);
   const bx=Math.round(w.x0),by=Math.round(w.y0),bw=Math.max(1,Math.round(w.x1-w.x0)),bh=Math.max(1,Math.round(w.y1-w.y0));
   const [bg,ink]=w.tr?['','']:samp(src,w);
   if(!w.tr){c.fillStyle=bg;c.fillRect(bx-3,by-3,bw+6,bh+6)}
-  c.fillStyle=tcolFor===w?tcol:(w.tr?'#111':ink);c.textBaseline='middle';c.font=fontStr(bh*$('sz').value/100);
-  const tw=c.measureText(t).width,cy=by+bh/2,fit=$('fit').checked&&tw>0;
-  const wt=$('wt').value*bh*$('sz').value/10000;
+  c.fillStyle=s.col||(w.tr?'#111':ink);c.textBaseline='middle';c.font=fontStr(bh*s.sz/100,s);
+  const tw=c.measureText(t).width,cy=by+bh/2,fit=s.fit&&tw>0;
+  const wt=s.wt*bh*s.sz/10000;
   const draw=x=>{c.fillText(t,x,cy);if(wt>0){c.save();c.lineWidth=wt;c.lineJoin='round';c.strokeStyle=c.fillStyle;c.strokeText(t,x,cy);c.restore()}};
   if(fit){c.save();c.translate(bx,0);c.scale(bw/tw,1);draw(0);c.restore()}else draw(bx);
   return fit?bw:tw;
 }
 function paint(p,w,t){const tw=paintOn(p.cv.getContext('2d'),p.cv,w,t);w.x1=Math.max(w.x1,w.x0+Math.round(tw));w.text=t}
 
-function render(c,p,k,a,b,pts,pv){
-  const x=Math.min(a.x,b.x),y=Math.min(a.y,b.y),w=Math.abs(a.x-b.x),h=Math.abs(a.y-b.y),lw=$('wid').value*p.cv.width/700;
-  c.save();c.lineWidth=lw;c.strokeStyle=c.fillStyle=$('col').value;c.lineCap=c.lineJoin='round';
-  if(k==='whiteout'){c.fillStyle=pv?'#fff':samp(p.cv,{x0:x,y0:y,x1:x+w,y1:y+h})[0];c.fillRect(x,y,w,h);if(pv){c.strokeStyle='#1f6fd1';c.strokeRect(x,y,w,h)}}
+function render(c,p,k,a,b,pts,pv,o){
+  const x=Math.min(a.x,b.x),y=Math.min(a.y,b.y),w=Math.abs(a.x-b.x),h=Math.abs(a.y-b.y),lw=(o?o.wid:$('wid').value)*p.cv.width/700;
+  c.save();c.lineWidth=lw;c.strokeStyle=c.fillStyle=(o?o.col:$('col').value);c.lineCap=c.lineJoin='round';
+  if(k==='whiteout'){c.fillStyle=pv?'#fff':(o?(o.pc||(o.pc=samp(p.cv,{x0:x,y0:y,x1:x+w,y1:y+h})[0])):samp(p.cv,{x0:x,y0:y,x1:x+w,y1:y+h})[0]);c.fillRect(x,y,w,h);if(pv){c.strokeStyle='#1f6fd1';c.strokeRect(x,y,w,h)}}
   else if(k==='hl'){c.globalCompositeOperation='multiply';c.fillRect(x,y,w,h)}
   else if(k==='pen'){c.beginPath();pts.forEach((q,i)=>i?c.lineTo(q.x,q.y):c.moveTo(q.x,q.y));c.stroke()}
   else if(k==='rect')c.strokeRect(x,y,w,h);
@@ -200,9 +219,12 @@ function show(){
   const p=pages[cur];view.style.display=p?'block':'none';
   if(!p){$('pg').textContent='0 / 0';$('pop').hidden=true;return}
   view.width=p.cv.width;view.height=p.cv.height;vc.drawImage(p.cv,0,0);
+  O(p).forEach(o=>{if(o!==im)drawObj(vc,p,o)});
+  p.words.forEach(w=>{if(w.L&&w!==sel)paintOn(vc,p.cv,w,w.text,w.L)});
+  if(tool==='select'&&so){const B=bbox(so),h=hsize();vc.save();vc.setLineDash([6,4]);vc.lineWidth=2;vc.strokeStyle='#3d5afe';vc.strokeRect(B.x0,B.y0,B.x1-B.x0,B.y1-B.y0);vc.restore();vc.fillStyle='#3d5afe';[[B.x0,B.y0],[B.x1,B.y0],[B.x0,B.y1],[B.x1,B.y1]].forEach(([x,y])=>vc.fillRect(x-h/2,y-h/2,h,h))}
   const t=$('word').value.trim();
   if(tool==='text'){
-    if(sel&&t&&(t!==sel.text||stFor===sel))paintOn(vc,p.cv,sel,t);
+    if(sel&&t&&(sel.L||t!==sel.text||stFor===sel))paintOn(vc,p.cv,sel,t);
     p.words.forEach(w=>{vc.lineWidth=2;vc.strokeStyle=w===sel?'#d4351c':'rgba(31,111,209,.45)';vc.strokeRect(w.x0,w.y0,w.x1-w.x0,w.y1-w.y0)});
     if(sel){const h=hsize();vc.fillStyle='#d4351c';corners(sel).forEach(([x,y])=>vc.fillRect(x-h/2,y-h/2,h,h))}
   }
@@ -235,6 +257,7 @@ function placePop(){
   floatAt($('pop'),tool==='text'&&sel?sel:null);
   if(tool==='text'&&sel)$('ptr').classList.toggle('on',!!sel.tr);
   floatAt($('ipop'),tool==='image'&&im?im:null);
+  floatAt($('opop'),tool==='select'&&so?bbox(so):null);$('oed').hidden=!(so&&so.k==='image');
   if(im)$('icrop').textContent=im.crop?'Apply crop':'Crop';
 }
 function setTool(t){
@@ -242,7 +265,7 @@ function setTool(t){
   view.style.touchAction=t?'none':'manipulation';
   document.querySelectorAll('[data-t]').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
   document.querySelectorAll('.ctx').forEach(c=>c.hidden=!c.dataset.for.split(' ').includes(t));
-  if(SUB[t]){$('sub').innerHTML=SUB[t].map(([v,n])=>'<option value="'+v+'">'+n+'</option>').join('');$('col').value=COL[$('sub').value]}
+  if(t!=='select')so=null;$('sub').hidden=!SUB[t];if(SUB[t]){$('sub').innerHTML=SUB[t].map(([v,n])=>'<option value="'+v+'">'+n+'</option>').join('');$('col').value=COL[$('sub').value]}
   show();st(t?HINT[t]:'Pick a tool from the toolbar.');
 }
 $('sub').onchange=()=>{$('col').value=COL[$('sub').value]};
@@ -277,7 +300,7 @@ $('ocr').onclick=async()=>{
   try{
     const w=await Tesseract.createWorker('eng',1,{logger:m=>{if(m.status==='recognizing text')st('OCR page '+(k+1)+' of '+pages.length+': '+Math.round(m.progress*100)+'%')}});
     for(k=0;k<pages.length;k++){
-      const r=await w.recognize(pages[k].cv);
+      pages[k].cv=flat(pages[k]);pages[k].objs=[];const r=await w.recognize(pages[k].cv);
       pages[k].words=r.data.words.filter(x=>x.text.trim()).map(x=>({text:x.text,x0:x.bbox.x0,y0:x.bbox.y0,x1:x.bbox.x1,y1:x.bbox.y1}));
     }
     await w.terminate();setTool('text');st('OCR done. '+HINT.text);
@@ -285,7 +308,7 @@ $('ocr').onclick=async()=>{
 };
 
 view.addEventListener('pointerdown',e=>{
-  if(!tool)return;const q=pt(e);
+  if(!tool)return;if(tool==='select')return selDown(e);const q=pt(e);
   const t=tool==='text'?sel:tool==='image'&&im?(im.crop||im):null;
   if(t){
     const h=hsize(),i=corners(t).findIndex(([x,y])=>Math.hypot(x-q.x,y-q.y)<h*1.5);
@@ -297,6 +320,7 @@ view.addEventListener('pointerdown',e=>{
   view.setPointerCapture(e.pointerId);e.preventDefault();
 });
 function applyDrag(q){
+  if(drag.t[0]==='o')return objDrag(q);
   if(drag.t==='d'){drag.b=q;drag.pts.push(q)}
   else{
     const isI=tool==='image'&&im,t=isI?(im.crop||im):sel,o=drag.o,L=isI&&im.crop?im:{x0:0,y0:0,x1:view.width,y1:view.height};
@@ -324,8 +348,8 @@ view.addEventListener('pointerup',e=>{
       const w={text:'',tr:true,x0:Math.round(Math.min(d.a.x,b.x)),y0:Math.round(Math.min(d.a.y,b.y)),x1:Math.round(Math.max(d.a.x,b.x)),y1:Math.round(Math.max(d.a.y,b.y))};
       p.words.push(w);sel=w;$('word').value='';show();$('word').focus();st('Type the text for this box, then tap Replace.');
     }else{
-      const hit=p.words.filter(w=>!(w.tr&&w.text)&&b.x>=w.x0&&b.x<=w.x1&&b.y>=w.y0&&b.y<=w.y1).sort((m,n)=>(m.x1-m.x0)*(m.y1-m.y0)-(n.x1-n.x0)*(n.y1-n.y0))[0];
-      sel=hit||null;$('word').value=hit?hit.text:'';show();
+      const hit=p.words.filter(w=>b.x>=w.x0&&b.x<=w.x1&&b.y>=w.y0&&b.y<=w.y1).sort((m,n)=>(m.x1-m.x0)*(m.y1-m.y0)-(n.x1-n.x0)*(n.y1-n.y0))[0];
+      sel=hit||null;if(hit&&hit.L)loadStyle(hit);stFor=null;$('word').value=hit?hit.text:'';show();
       if(hit)$('word').focus();else st('No word there. Run OCR, or drag on empty space to add a text box.');
     }
     return;
@@ -333,32 +357,32 @@ view.addEventListener('pointerup',e=>{
   if(tool==='image'){makeDraft(d.a,b,dx,dy);show();return}
   const k=kind();
   if(k==='pen'?d.pts.length>2:(dx>6&&dy>6||(k==='line'||k==='arr')&&dx+dy>12)){
-    snap(p);render(p.cv.getContext('2d'),p,k,d.a,b,d.pts,false);
+    snap(p);O(p).push({k,a:{...d.a},b:{...b},pts:d.pts.map(q=>({...q})),col:$('col').value,wid:+$('wid').value});
   }
   show();
 });
 
 function snap(p){
   p.u=p.u||[];
-  p.u.push({i:p.cv.getContext('2d').getImageData(0,0,p.cv.width,p.cv.height),w:JSON.parse(JSON.stringify(p.words))});
+  p.u.push({i:p.cv.getContext('2d').getImageData(0,0,p.cv.width,p.cv.height),w:JSON.parse(JSON.stringify(p.words)),o:cloneObjs(p)});
   if(p.u.length>8)p.u.shift();
 }
 $('undo').onclick=()=>{
   const p=pages[cur],s=p&&p.u&&p.u.pop();
-  if(s){p.cv.getContext('2d').putImageData(s.i,0,0);p.words=s.w;sel=null;$('word').value='';show();st('Undone.')}else st('Nothing to undo on this page.');
+  if(s){p.cv.getContext('2d').putImageData(s.i,0,0);p.words=s.w;p.objs=s.o||[];so=null;im=null;sel=null;$('word').value='';show();st('Undone.')}else st('Nothing to undo on this page.');
 };
 $('apply').onclick=async()=>{
   const p=pages[cur],t=$('word').value.trim();
   if(!sel)return st('Tap a word or drag a box first.');
   if(!t)return st('Type the new text first.');
-  await ready();snap(p);paint(p,sel,t);sel=null;stFor=null;$('word').value='';show();st('Replaced. Save PDF when you are done.');
+  await ready();snap(p);setLayer(p,sel,t);sel=null;stFor=null;$('word').value='';show();st('Applied. Tap the text again at any time to edit it. Save PDF when you are done.');
 };
 $('all').onclick=async()=>{
   const f=$('fnd').value.trim(),t=$('rep').value;let n=0;
   if(!f)return st('Type the text to find.');
   await ready();
   const clean=s=>s.replace(/^[^\w]+|[^\w]+$/g,'').toLowerCase();
-  pages.forEach(p=>{const m=p.words.filter(w=>w.text&&clean(w.text)===clean(f));if(m.length){snap(p);m.forEach(w=>{paint(p,w,t);n++})}});
+  pages.forEach(p=>{const m=p.words.filter(w=>w.text&&clean(w.text)===clean(f));if(m.length){snap(p);m.forEach(w=>{setLayer(p,w,t);n++})}});
   sel=null;$('word').value='';show();
   st(n?'Replaced '+n+' match(es) across all pages.':'No matches. Check the spelling against what OCR read.');
 };
@@ -370,13 +394,13 @@ window.addEventListener('resize',()=>show());
 $('ptr').onclick=()=>{if(!sel)return;sel.tr=!sel.tr;stFor=sel;refresh()};
 $('pdel').onclick=()=>{
   const p=pages[cur];if(!sel)return;
-  if(sel.tr&&sel.text)return st('This text is already on the page. Use Undo to remove it.');
+  if(sel.L){snap(p);if(sel.o0){sel.text=sel.o0;delete sel.L;delete sel.o0}else p.words=p.words.filter(w=>w!==sel);sel=null;$('word').value='';show();return st('Your edit was removed.')}
   if(sel.text){snap(p);const c=p.cv.getContext('2d');c.fillStyle=samp(p.cv,sel)[0];c.fillRect(sel.x0-3,sel.y0-3,sel.x1-sel.x0+6,sel.y1-sel.y0+6)}
   p.words=p.words.filter(w=>w!==sel);sel=null;$('word').value='';show();st('Deleted.');
 };
 $('pdup').onclick=()=>{
   const p=pages[cur];if(!sel)return;
-  const h=(sel.y1-sel.y0)*1.3,d=sel.y1+h>view.height?-h:h,t=$('word').value,w={...sel,y0:sel.y0+d,y1:sel.y1+d,text:'',tr:true,url:undefined};
+  const h=(sel.y1-sel.y0)*1.3,d=sel.y1+h>view.height?-h:h,t=$('word').value,w={...sel,y0:sel.y0+d,y1:sel.y1+d,text:'',tr:true,url:undefined,L:undefined,o0:undefined};
   p.words.push(w);if(tcolFor===sel)tcolFor=w;sel=w;$('word').value=t;show();st('Duplicated. Move it into place, then tap the check mark.');
 };
 $('plnk').onclick=()=>{
@@ -450,7 +474,7 @@ function rmbg(cv,tol){
 }
 function commitIm(){
   const p=pages[cur];if(!im||!p)return;if(im.crop)applyCrop();
-  snap(p);p.cv.getContext('2d').drawImage(im.src,im.x0,im.y0,im.x1-im.x0,im.y1-im.y0);
+  snap(p);im.k='image';if(!O(p).includes(im))O(p).push(im);
   pend=im.src;im=null;show();st('Placed. Tap the page to add another copy, or pick another tool.');
 }
 $('icrop').onclick=()=>{
@@ -469,7 +493,7 @@ $('ibg').onclick=()=>{
 };
 $('idel').onclick=()=>{
   if(!im)return;
-  if(im.crop){im.crop=null;st('Crop cancelled.')}else{im=null;st('Image discarded.')}
+  if(im.crop){im.crop=null;st('Crop cancelled.')}else{const pg=pages[cur];if(pg)pg.objs=O(pg).filter(o=>o!==im);im=null;st('Image removed.')}
   show();
 };
 $('iok').onclick=commitIm;
@@ -489,6 +513,64 @@ $('sigf').onchange=async e=>{
     st('Signature loaded with its background removed. Tap the page where it should go, or drag a box. Use Remove BG in the toolbar if parts of the paper remain.');
   }catch(err){st('Could not open that image: '+err.message)}
 };
+const O=p=>p.objs||(p.objs=[]);
+const cloneObjs=p=>O(p).map(o=>({...o,a:o.a&&{...o.a},b:o.b&&{...o.b},pts:o.pts&&o.pts.map(q=>({...q}))}));
+function drawObj(c,p,o){if(o.k==='image')c.drawImage(o.src,o.x0,o.y0,o.x1-o.x0,o.y1-o.y0);else render(c,p,o.k,o.a,o.b,o.pts,false,o)}
+function bbox(o){
+  if(o.k==='image')return{x0:o.x0,y0:o.y0,x1:o.x1,y1:o.y1};
+  const P=o.k==='pen'&&o.pts.length?o.pts:[o.a,o.b],X=P.map(q=>q.x),Y=P.map(q=>q.y);
+  return{x0:Math.min(...X),y0:Math.min(...Y),x1:Math.max(...X),y1:Math.max(...Y)};
+}
+function hitObj(o,q){
+  const t=hsize()*1.2,B=bbox(o);
+  if(o.k==='line'||o.k==='arr'||o.k==='pen'){
+    const P=o.k==='pen'?o.pts:[o.a,o.b];
+    for(let i=0;i<Math.max(1,P.length-1);i++){
+      const a=P[i],b=P[i+1]||a,dx=b.x-a.x,dy=b.y-a.y,u=Math.max(0,Math.min(1,((q.x-a.x)*dx+(q.y-a.y)*dy)/(dx*dx+dy*dy||1)));
+      if(Math.hypot(q.x-a.x-u*dx,q.y-a.y-u*dy)<t)return true;
+    }
+    return false;
+  }
+  const m=o.k==='rect'||o.k==='ell'?t:0;
+  return q.x>=B.x0-m&&q.x<=B.x1+m&&q.y>=B.y0-m&&q.y<=B.y1+m;
+}
+const cloneGeo=o=>({a:o.a&&{...o.a},b:o.b&&{...o.b},pts:o.pts?o.pts.map(q=>({...q})):[],x0:o.x0,y0:o.y0,x1:o.x1,y1:o.y1});
+function setGeo(o,g,fn){
+  if(o.k==='image'){const A=fn(g.x0,g.y0),C=fn(g.x1,g.y1);o.x0=A.x;o.y0=A.y;o.x1=C.x;o.y1=C.y;return}
+  const m=q=>fn(q.x,q.y);o.a=m(g.a);o.b=m(g.b);if(g.pts.length)o.pts=g.pts.map(m);
+}
+function loadObj(o){if(o.col)$('col').value=o.col;if(o.wid)$('wid').value=String(o.wid)}
+function selDown(e){
+  const p=pages[cur],q=pt(e);if(!p)return;
+  if(so){
+    const B=bbox(so),h=hsize(),i=[[B.x0,B.y0],[B.x1,B.y0],[B.x0,B.y1],[B.x1,B.y1]].findIndex(([x,y])=>Math.hypot(x-q.x,y-q.y)<h*1.5);
+    if(i>=0){snap(p);drag={t:'or',i,B,o:cloneGeo(so)};view.setPointerCapture(e.pointerId);e.preventDefault();return}
+  }
+  so=[...O(p)].reverse().find(o=>hitObj(o,q))||null;
+  if(so){loadObj(so);snap(p);drag={t:'om',a:q,B:bbox(so),o:cloneGeo(so)};view.setPointerCapture(e.pointerId);e.preventDefault()}
+  show();
+}
+function objDrag(q){
+  const o=so,d=drag,g=d.o,B=d.B;if(!o)return;
+  if(d.t==='om'){const dx=q.x-d.a.x,dy=q.y-d.a.y;setGeo(o,g,(x,y)=>({x:x+dx,y:y+dy}))}
+  else{
+    const w0=B.x1-B.x0||1,h0=B.y1-B.y0||1,f=[[B.x1,B.y1],[B.x0,B.y1],[B.x1,B.y0],[B.x0,B.y0]][d.i];
+    let x0=Math.min(f[0],q.x),x1=Math.max(f[0],q.x),y0=Math.min(f[1],q.y),y1=Math.max(f[1],q.y);
+    if(o.k==='image'){const w=Math.max(10,x1-x0),h=w*h0/w0,L=d.i%2===0,T=d.i<2;x0=L?f[0]-w:f[0];x1=L?f[0]:f[0]+w;y0=T?f[1]-h:f[1];y1=T?f[1]:f[1]+h}
+    const sx=(x1-x0)/w0,sy=(y1-y0)/h0;
+    setGeo(o,g,(x,y)=>({x:x0+(x-B.x0)*sx,y:y0+(y-B.y0)*sy}));
+  }
+  show();
+}
+$('col').addEventListener('input',()=>{if(tool==='select'&&so&&so.col!==undefined){so.col=$('col').value;show()}});
+$('wid').addEventListener('change',()=>{if(tool==='select'&&so&&so.wid!==undefined){so.wid=+$('wid').value;show()}});
+$('odel').onclick=()=>{const p=pages[cur];if(!so||!p)return;snap(p);p.objs=O(p).filter(o=>o!==so);so=null;show();st('Deleted.')};
+$('odup').onclick=()=>{
+  const p=pages[cur];if(!so||!p)return;snap(p);
+  const n={...so,a:so.a&&{...so.a},b:so.b&&{...so.b},pts:so.pts&&so.pts.map(q=>({...q})),pc:undefined};
+  setGeo(n,cloneGeo(n),(x,y)=>({x:x+30,y:y+30}));O(p).push(n);so=n;show();st('Duplicated. Drag it into place.');
+};
+$('oed').onclick=()=>{const p=pages[cur];if(!so||so.k!=='image'||!p)return;snap(p);im=so;so=null;setTool('image');show();st('Editing the image. Tap the check mark when you are done.')};
 let zoom=1;
 function setZoom(z){zoom=Math.min(3,Math.max(.5,z));view.style.width=zoom*100+'%';show();st('Zoom '+Math.round(zoom*100)+'%. Switch off the active tool to scroll a zoomed page by touch.')}
 $('zin').onclick=()=>setZoom(zoom+.25);$('zout').onclick=()=>setZoom(zoom-.25);
@@ -500,7 +582,7 @@ $('pdelpg').onclick=()=>{
 };
 function rotate(dir){
   const p=pages[cur];if(!p)return;
-  const o=p.cv,n=document.createElement('canvas');n.width=o.height;n.height=o.width;
+  p.cv=flat(p);p.objs=[];const o=p.cv,n=document.createElement('canvas');n.width=o.height;n.height=o.width;
   const c=n.getContext('2d');c.translate(n.width/2,n.height/2);c.rotate(dir*Math.PI/2);c.drawImage(o,-o.width/2,-o.height/2);
   p.cv=n;p.words=[];p.u=[];sel=null;$('word').value='';show();
   st('Page rotated. Run OCR again to refresh text recognition for it.');
@@ -529,7 +611,7 @@ $('save').onclick=async()=>{
     const {PDFDocument,StandardFonts}=PDFLib,doc=await PDFDocument.create(),f=await doc.embedFont(StandardFonts.Helvetica);
     for(const p of pages){
       const W=p.cv.width/p.s,H=p.cv.height/p.s,pg=doc.addPage([W,H]);
-      pg.drawImage(await doc.embedJpg(p.cv.toDataURL('image/jpeg',.92)),{x:0,y:0,width:W,height:H});
+      pg.drawImage(await doc.embedJpg(flat(p).toDataURL('image/jpeg',.92)),{x:0,y:0,width:W,height:H});
       for(const w of p.words.filter(x=>x.text)){
         try{pg.drawText(w.text,{x:w.x0/p.s,y:H-w.y1/p.s,size:Math.max(4,(w.y1-w.y0)/p.s*.85),font:f,opacity:0})}catch(e){}
         if(w.url){try{const cx=doc.context,an=cx.obj({Type:'Annot',Subtype:'Link',Rect:[w.x0/p.s,H-w.y1/p.s,w.x1/p.s,H-w.y0/p.s],Border:[0,0,0],A:{Type:'Action',S:'URI',URI:PDFLib.PDFString.of(w.url)}});pg.node.addAnnot(cx.register(an))}catch(e){}}
